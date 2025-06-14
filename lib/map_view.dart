@@ -26,6 +26,9 @@ class MapView extends StatelessWidget {
   final VoidCallback onStartDistrictCreation;
   final VoidCallback onSaveDistrict;
   final VoidCallback onCancelDistrictCreation;
+  final bool followLocation;
+  final VoidCallback onCenterLocation;
+  final VoidCallback onUserMapMove;
 
   const MapView({
     super.key,
@@ -50,6 +53,9 @@ class MapView extends StatelessWidget {
     required this.onStartDistrictCreation,
     required this.onSaveDistrict,
     required this.onCancelDistrictCreation,
+    required this.followLocation,
+    required this.onCenterLocation,
+    required this.onUserMapMove,
   });
 
   @override
@@ -78,6 +84,11 @@ class MapView extends StatelessWidget {
                   onSelectDistrict(i);
                   break;
                 }
+              }
+            },
+            onPositionChanged: (pos, hasGesture) {
+              if (hasGesture) {
+                onUserMapMove();
               }
             },
           ),
@@ -222,11 +233,7 @@ class MapView extends StatelessWidget {
           bottom: 24,
           right: 24,
           child: FloatingActionButton(
-            onPressed: () {
-              if (currentPosition != null) {
-                mapController.move(currentPosition!, mapController.camera.zoom);
-              }
-            },
+            onPressed: onCenterLocation,
             child: const Icon(Icons.my_location),
           ),
         ),

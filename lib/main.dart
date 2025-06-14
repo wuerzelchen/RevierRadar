@@ -58,6 +58,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final MapController _mapController = MapController();
   LocationData? _currentPosition;
   late final Stream<LocationData> _locationStream;
+  bool _followLocation = true;
 
   @override
   void initState() {
@@ -73,6 +74,12 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _currentPosition = newPosition;
       });
+      if (_followLocation && _currentPosition != null) {
+        _mapController.move(
+          LatLng(_currentPosition!.latitude!, _currentPosition!.longitude!),
+          _mapController.camera.zoom,
+        );
+      }
     });
   }
 
@@ -172,6 +179,28 @@ class _MyHomePageState extends State<MyHomePage> {
                   onSaveDistrict: () => _onSaveDistrict(context),
                   onCancelDistrictCreation:
                       _districtController.cancelDistrictCreation,
+                  followLocation: _followLocation,
+                  onCenterLocation: () {
+                    setState(() {
+                      _followLocation = true;
+                    });
+                    if (_currentPosition != null) {
+                      _mapController.move(
+                        LatLng(
+                          _currentPosition!.latitude!,
+                          _currentPosition!.longitude!,
+                        ),
+                        _mapController.camera.zoom,
+                      );
+                    }
+                  },
+                  onUserMapMove: () {
+                    if (_followLocation) {
+                      setState(() {
+                        _followLocation = false;
+                      });
+                    }
+                  },
                 );
               },
             ),
