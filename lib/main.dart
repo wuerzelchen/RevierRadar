@@ -1,4 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import 'district_controller.dart';
+import 'location_service.dart';
+import 'map_view.dart';
+import 'dialogs.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:location/location.dart';
+import 'dart:math';
 
 void main() {
   runApp(const MyApp());
@@ -11,7 +19,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Revier Radar',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -28,95 +36,145 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 12, 37, 0),
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  const MyHomePage({super.key});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final DistrictController _districtController = DistrictController();
+  final LocationService _locationService = LocationService();
+  final MapController _mapController = MapController();
+  LocationData? _currentPosition;
+  late final Stream<LocationData> _locationStream;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    _currentPosition = await _locationService.getCurrentLocation();
+    setState(() {});
+    _locationStream = _locationService.locationStream;
+    _locationStream.listen((LocationData newPosition) {
+      setState(() {
+        _currentPosition = newPosition;
+      });
     });
+  }
+
+  Future<void> _onSaveDistrict(BuildContext context) async {
+    if (_districtController.currentDistrictPoints.length < 3) return;
+    String name = await showDistrictNameDialog(context);
+    if (name.isEmpty) return;
+    _districtController.saveDistrict(name);
+  }
+
+  void _onSelectDistrictAndCenter(int index) {
+    _districtController.selectDistrict(index);
+    final district = _districtController.districts[index];
+    if (district.points.isEmpty) return;
+    double minLat = district.points.first.latitude;
+    double maxLat = district.points.first.latitude;
+    double minLng = district.points.first.longitude;
+    double maxLng = district.points.first.longitude;
+    for (final pt in district.points) {
+      if (pt.latitude < minLat) minLat = pt.latitude;
+      if (pt.latitude > maxLat) maxLat = pt.latitude;
+      if (pt.longitude < minLng) minLng = pt.longitude;
+      if (pt.longitude > maxLng) maxLng = pt.longitude;
+    }
+    // Add margin (5%)
+    final latMargin = (maxLat - minLat) * 0.1;
+    final lngMargin = (maxLng - minLng) * 0.1;
+    minLat -= latMargin;
+    maxLat += latMargin;
+    minLng -= lngMargin;
+    maxLng += lngMargin;
+    final center = LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2);
+    // Estimate zoom so that the bounding box fits
+    final worldDim = 256.0;
+    final mapSize = MediaQuery.of(context).size;
+    double latRad(double lat) {
+      final siny = sin(lat * pi / 180.0);
+      return log((1 + siny) / (1 - siny)) / 2;
+    }
+
+    double zoom(double mapPx, double worldPx, double fraction) {
+      return (log(mapPx / worldPx / fraction) / ln2).clamp(0.0, 18.0);
+    }
+
+    final latFraction = (latRad(maxLat) - latRad(minLat)) / pi;
+    final lngFraction = ((maxLng - minLng) / 360.0).abs();
+    final latZoom = zoom(mapSize.height, worldDim, latFraction);
+    final lngZoom = zoom(mapSize.width, worldDim, lngFraction);
+    final targetZoom = min(latZoom, lngZoom);
+    _mapController.move(center, targetZoom);
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Revier Radar'),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: _currentPosition == null
+          ? const Center(child: CircularProgressIndicator())
+          : AnimatedBuilder(
+              animation: _districtController,
+              builder: (context, _) {
+                return MapView(
+                  mapController: _mapController,
+                  currentPosition: _currentPosition == null
+                      ? null
+                      : LatLng(
+                          _currentPosition!.latitude!,
+                          _currentPosition!.longitude!,
+                        ),
+                  districts: _districtController.districts,
+                  currentDistrictPoints:
+                      _districtController.currentDistrictPoints,
+                  isCreatingDistrict: _districtController.isCreatingDistrict,
+                  isEditingDistrict: _districtController.isEditingDistrict,
+                  selectedDistrictIndex:
+                      _districtController.selectedDistrictIndex,
+                  editingPointIndex: _districtController.editingPointIndex,
+                  onMapTapEditDistrict:
+                      _districtController.onMapTapEditDistrict,
+                  addDistrictPoint: _districtController.addDistrictPoint,
+                  onEditPointTap: _districtController.onEditPointTap,
+                  confirmRemovePoint: _districtController.confirmRemovePoint,
+                  onSelectDistrict: _onSelectDistrictAndCenter,
+                  onStartEditDistrict: _districtController.startEditDistrict,
+                  onDeleteSelectedDistrict:
+                      _districtController.deleteSelectedDistrict,
+                  onStopEditDistrict: _districtController.stopEditDistrict,
+                  onConfirmEditDistrict:
+                      _districtController.confirmEditDistrict,
+                  hasDistrictEditChanged:
+                      _districtController.hasDistrictEditChanged,
+                  onStartDistrictCreation:
+                      _districtController.startDistrictCreation,
+                  onSaveDistrict: () => _onSaveDistrict(context),
+                  onCancelDistrictCreation:
+                      _districtController.cancelDistrictCreation,
+                );
+              },
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }

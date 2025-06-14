@@ -1,0 +1,331 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+
+import 'package:latlong2/latlong.dart';
+import 'polygon_utils.dart';
+
+class MapView extends StatelessWidget {
+  final MapController mapController;
+  final LatLng? currentPosition;
+  final List<dynamic> districts;
+  final List<LatLng> currentDistrictPoints;
+  final bool isCreatingDistrict;
+  final bool isEditingDistrict;
+  final int? selectedDistrictIndex;
+  final int? editingPointIndex;
+  final void Function(LatLng) onMapTapEditDistrict;
+  final void Function(LatLng) addDistrictPoint;
+  final void Function(int) onEditPointTap;
+  final VoidCallback confirmRemovePoint;
+  final void Function(int) onSelectDistrict;
+  final VoidCallback onStartEditDistrict;
+  final VoidCallback onDeleteSelectedDistrict;
+  final VoidCallback onStopEditDistrict;
+  final VoidCallback onConfirmEditDistrict;
+  final bool hasDistrictEditChanged;
+  final VoidCallback onStartDistrictCreation;
+  final VoidCallback onSaveDistrict;
+  final VoidCallback onCancelDistrictCreation;
+
+  const MapView({
+    super.key,
+    required this.mapController,
+    required this.currentPosition,
+    required this.districts,
+    required this.currentDistrictPoints,
+    required this.isCreatingDistrict,
+    required this.isEditingDistrict,
+    required this.selectedDistrictIndex,
+    required this.editingPointIndex,
+    required this.onMapTapEditDistrict,
+    required this.addDistrictPoint,
+    required this.onEditPointTap,
+    required this.confirmRemovePoint,
+    required this.onSelectDistrict,
+    required this.onStartEditDistrict,
+    required this.onDeleteSelectedDistrict,
+    required this.onStopEditDistrict,
+    required this.onConfirmEditDistrict,
+    required this.hasDistrictEditChanged,
+    required this.onStartDistrictCreation,
+    required this.onSaveDistrict,
+    required this.onCancelDistrictCreation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: mapController,
+          options: MapOptions(
+            center: currentPosition,
+            zoom: 15.0,
+            onTap: (tapPosition, latlng) {
+              if (isCreatingDistrict) {
+                addDistrictPoint(latlng);
+                return;
+              }
+              if (isEditingDistrict && selectedDistrictIndex != null) {
+                onMapTapEditDistrict(latlng);
+                return;
+              }
+              // Polygon selection by tap
+              for (int i = 0; i < districts.length; i++) {
+                final d = districts[i];
+                if (d.points.length > 2 &&
+                    PolygonUtils.pointInPolygon(latlng, d.points)) {
+                  onSelectDistrict(i);
+                  break;
+                }
+              }
+            },
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c'],
+            ),
+            MarkerLayer(
+              markers: [
+                if (currentPosition != null)
+                  Marker(
+                    width: 80.0,
+                    height: 80.0,
+                    point: currentPosition!,
+                    child: const Icon(
+                      Icons.my_location,
+                      color: Colors.red,
+                      size: 40,
+                    ),
+                  ),
+                ...currentDistrictPoints.map(
+                  (point) => Marker(
+                    width: 30.0,
+                    height: 30.0,
+                    point: point,
+                    child: const Icon(
+                      Icons.circle,
+                      color: Colors.blue,
+                      size: 16,
+                    ),
+                  ),
+                ),
+                if (isEditingDistrict && selectedDistrictIndex != null)
+                  ...districts[selectedDistrictIndex!].points
+                      .asMap()
+                      .entries
+                      .map((entry) {
+                        final idx = entry.key;
+                        final pt = entry.value;
+                        return Marker(
+                          width: 60.0,
+                          height: 36.0,
+                          point: pt,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  onEditPointTap(idx);
+                                },
+                                child: Icon(
+                                  Icons.circle,
+                                  color: editingPointIndex == idx
+                                      ? Colors.orange
+                                      : Colors.deepPurple,
+                                  size: 22,
+                                ),
+                              ),
+                              if (editingPointIndex == idx)
+                                Positioned(
+                                  right: 0,
+                                  child: GestureDetector(
+                                    onTap: confirmRemovePoint,
+                                    child: Container(
+                                      margin: const EdgeInsets.only(left: 18),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 2,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+              ],
+            ),
+            PolygonLayer(
+              polygons: [
+                ...districts.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final d = entry.value;
+                  final isSelected = i == selectedDistrictIndex;
+                  return Polygon(
+                    points: d.points,
+                    color: d.color.withOpacity(isSelected ? 0.5 : 0.3),
+                    borderStrokeWidth: isSelected ? 5 : 3,
+                    borderColor: isSelected ? Colors.black : d.color,
+                  );
+                }),
+                if (isCreatingDistrict && currentDistrictPoints.length > 2)
+                  Polygon(
+                    points: currentDistrictPoints,
+                    color: Colors.blue.withOpacity(0.2),
+                    borderStrokeWidth: 2,
+                    borderColor: Colors.blue,
+                  ),
+              ],
+            ),
+          ],
+        ),
+        // Save and Cancel buttons for district (bottom center, above FABs)
+        if (isCreatingDistrict && !isEditingDistrict)
+          Positioned(
+            bottom: 90,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (currentDistrictPoints.length > 2)
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.save),
+                    label: const Text('Save District'),
+                    onPressed: onSaveDistrict,
+                  ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Cancel'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: onCancelDistrictCreation,
+                ),
+              ],
+            ),
+          ),
+        // Center map button (bottom right)
+        Positioned(
+          bottom: 24,
+          right: 24,
+          child: FloatingActionButton(
+            onPressed: () {
+              if (currentPosition != null) {
+                mapController.move(currentPosition!, mapController.camera.zoom);
+              }
+            },
+            child: const Icon(Icons.my_location),
+          ),
+        ),
+        // Plus button for district creation (bottom left)
+        Positioned(
+          bottom: 24,
+          left: 24,
+          child: FloatingActionButton(
+            backgroundColor: isCreatingDistrict ? Colors.orange : null,
+            onPressed: isCreatingDistrict ? null : onStartDistrictCreation,
+            child: const Icon(Icons.add),
+          ),
+        ),
+        // Legend (top right) with edit controls
+        if (districts.isNotEmpty)
+          Positioned(
+            top: 24,
+            right: 24,
+            child: Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Districts',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    ...districts.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final d = entry.value;
+                      final isSelected = i == selectedDistrictIndex;
+                      return InkWell(
+                        onTap: () => onSelectDistrict(i),
+                        child: Container(
+                          color: isSelected ? Colors.black12 : null,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 16,
+                                height: 16,
+                                margin: const EdgeInsets.only(right: 6),
+                                decoration: BoxDecoration(
+                                  color: d.color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              Text(d.name),
+                              if (isSelected && !isEditingDistrict) ...[
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: onStartEditDistrict,
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                    size: 18,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: onDeleteSelectedDistrict,
+                                ),
+                              ],
+                              if (isSelected && isEditingDistrict) ...[
+                                if (hasDistrictEditChanged)
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.check,
+                                      color: Colors.green,
+                                    ),
+                                    tooltip: 'Confirm Edit',
+                                    onPressed: onConfirmEditDistrict,
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  tooltip: 'Exit Edit',
+                                  onPressed: onStopEditDistrict,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
