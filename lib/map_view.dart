@@ -30,6 +30,8 @@ class MapView extends StatelessWidget {
   final VoidCallback onCenterLocation;
   final VoidCallback onUserMapMove;
 
+  final bool satelliteView;
+
   const MapView({
     super.key,
     required this.mapController,
@@ -56,6 +58,7 @@ class MapView extends StatelessWidget {
     required this.followLocation,
     required this.onCenterLocation,
     required this.onUserMapMove,
+    required this.satelliteView,
   });
 
   @override
@@ -94,8 +97,10 @@ class MapView extends StatelessWidget {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              subdomains: const ['a', 'b', 'c'],
+              urlTemplate: satelliteView
+                  ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                  : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              subdomains: satelliteView ? const [] : const ['a', 'b', 'c'],
             ),
             MarkerLayer(
               markers: [

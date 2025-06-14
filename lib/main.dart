@@ -68,6 +68,7 @@ class _MyHomePageState extends State<MyHomePage> {
   LocationData? _currentPosition;
   late final Stream<LocationData> _locationStream;
   bool _followLocation = true;
+  bool _satelliteView = false;
 
   @override
   void initState() {
@@ -148,6 +149,17 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('Revier Radar'),
+        actions: [
+          IconButton(
+            icon: Icon(_satelliteView ? Icons.satellite : Icons.map),
+            tooltip: _satelliteView ? 'Switch to Map' : 'Switch to Satellite',
+            onPressed: () {
+              setState(() {
+                _satelliteView = !_satelliteView;
+              });
+            },
+          ),
+        ],
       ),
       body: _currentPosition == null
           ? const Center(child: CircularProgressIndicator())
@@ -211,6 +223,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       });
                     }
                   },
+                  satelliteView: _satelliteView,
                 );
               },
             ),
