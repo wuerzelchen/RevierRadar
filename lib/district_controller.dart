@@ -3,7 +3,11 @@ import 'package:latlong2/latlong.dart';
 import 'district_model.dart';
 import 'polygon_utils.dart';
 
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
 class DistrictController extends ChangeNotifier {
+  static const String _districtsBoxName = 'districtsBox';
   bool isEditingDistrict = false;
   int? editingPointIndex;
   List<LatLng>? originalDistrictPoints;
@@ -12,6 +16,24 @@ class DistrictController extends ChangeNotifier {
   bool isCreatingDistrict = false;
   List<LatLng> currentDistrictPoints = [];
   List<District> districts = [];
+  bool _initialized = false;
+
+  Future<void> init() async {
+    if (_initialized) return;
+    await Hive.initFlutter();
+    if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(DistrictAdapter());
+    if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(LatLngSerializableAdapter());
+    var box = await Hive.openBox<District>(_districtsBoxName);
+    districts = box.values.toList();
+    _initialized = true;
+    notifyListeners();
+  }
+
+  Future<void> _saveDistricts() async {
+    var box = await Hive.openBox<District>(_districtsBoxName);
+    await box.clear();
+    await box.addAll(districts);
+  }
   final List<Color> districtColors = [
     Colors.blueAccent,
     Colors.green,
@@ -31,7 +53,7 @@ class DistrictController extends ChangeNotifier {
         selectedDistrictIndex == null ||
         originalDistrictPoints == null)
       return false;
-    final current = districts[selectedDistrictIndex!].points;
+    final current = districts[selectedDistrictIndex!].latLngPoints;
     final original = originalDistrictPoints!;
     if (current.length != original.length) return true;
     for (int i = 0; i < current.length; i++) {
@@ -44,6 +66,7 @@ class DistrictController extends ChangeNotifier {
     isEditingDistrict = false;
     editingPointIndex = null;
     originalDistrictPoints = null;
+    _saveDistricts();
     notifyListeners();
   }
 
@@ -52,7 +75,7 @@ class DistrictController extends ChangeNotifier {
     isEditingDistrict = true;
     editingPointIndex = null;
     originalDistrictPoints = List<LatLng>.from(
-      districts[selectedDistrictIndex!].points,
+      districts[selectedDistrictIndex!].latLngPoints,
     );
     notifyListeners();
   }
@@ -61,7 +84,7 @@ class DistrictController extends ChangeNotifier {
     if (selectedDistrictIndex != null && originalDistrictPoints != null) {
       districts[selectedDistrictIndex!].points
         ..clear()
-        ..addAll(originalDistrictPoints!);
+        ..addAll(originalDistrictPoints!.map((p) => LatLngSerializable.fromLatLng(p)));
     }
     isEditingDistrict = false;
     editingPointIndex = null;
@@ -73,11 +96,12 @@ class DistrictController extends ChangeNotifier {
     if (selectedDistrictIndex == null || !isEditingDistrict) return;
     final district = districts[selectedDistrictIndex!];
     if (editingPointIndex != null) {
-      district.points[editingPointIndex!] = latlng;
+      district.points[editingPointIndex!] = LatLngSerializable.fromLatLng(latlng);
+      _saveDistricts();
       notifyListeners();
       return;
     }
-    final points = district.points;
+    final points = district.latLngPoints;
     const double threshold = 0.00001;
     bool exists = points.any(
       (p) =>
@@ -86,7 +110,8 @@ class DistrictController extends ChangeNotifier {
     );
     if (exists) return;
     if (points.length < 2) {
-      points.add(latlng);
+      districts[selectedDistrictIndex!].points.add(LatLngSerializable.fromLatLng(latlng));
+      _saveDistricts();
       notifyListeners();
       return;
     }
@@ -100,7 +125,8 @@ class DistrictController extends ChangeNotifier {
         insertIdx = j;
       }
     }
-    points.insert(insertIdx, latlng);
+    districts[selectedDistrictIndex!].points.insert(insertIdx, LatLngSerializable.fromLatLng(latlng));
+    _saveDistricts();
     notifyListeners();
   }
 
@@ -111,6 +137,7 @@ class DistrictController extends ChangeNotifier {
       );
       removePointCandidateIdx = null;
       editingPointIndex = null;
+      _saveDistricts();
       notifyListeners();
     }
   }
@@ -131,6 +158,7 @@ class DistrictController extends ChangeNotifier {
         selectedDistrictIndex! < districts.length) {
       districts.removeAt(selectedDistrictIndex!);
       selectedDistrictIndex = null;
+      _saveDistricts();
       notifyListeners();
     }
   }
@@ -164,6 +192,7 @@ class DistrictController extends ChangeNotifier {
     districtColorIndex++;
     isCreatingDistrict = false;
     currentDistrictPoints = [];
+    _saveDistricts();
     notifyListeners();
   }
 }

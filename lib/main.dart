@@ -9,11 +9,16 @@ import 'package:location/location.dart';
 import 'dart:math';
 
 void main() {
-  runApp(const MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  final districtController = DistrictController();
+  districtController.init().then((_) {
+    runApp(MyApp(districtController: districtController));
+  });
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final DistrictController districtController;
+  const MyApp({super.key, required this.districtController});
 
   // This widget is the root of your application.
   @override
@@ -38,22 +43,26 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color.fromARGB(255, 12, 37, 0),
+          contrastLevel: 0.5,
+          brightness: Brightness.dark,
         ),
       ),
-      home: const MyHomePage(),
+      home: MyHomePage(districtController: districtController),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+  final DistrictController districtController;
+  const MyHomePage({Key? key, required this.districtController})
+    : super(key: key);
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final DistrictController _districtController = DistrictController();
+  late final DistrictController _districtController;
   final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
   LocationData? _currentPosition;
@@ -63,6 +72,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    _districtController = widget.districtController;
     _initLocation();
   }
 
@@ -93,12 +103,12 @@ class _MyHomePageState extends State<MyHomePage> {
   void _onSelectDistrictAndCenter(int index) {
     _districtController.selectDistrict(index);
     final district = _districtController.districts[index];
-    if (district.points.isEmpty) return;
-    double minLat = district.points.first.latitude;
-    double maxLat = district.points.first.latitude;
-    double minLng = district.points.first.longitude;
-    double maxLng = district.points.first.longitude;
-    for (final pt in district.points) {
+    if (district.latLngPoints.isEmpty) return;
+    double minLat = district.latLngPoints.first.latitude;
+    double maxLat = district.latLngPoints.first.latitude;
+    double minLng = district.latLngPoints.first.longitude;
+    double maxLng = district.latLngPoints.first.longitude;
+    for (final pt in district.latLngPoints) {
       if (pt.latitude < minLat) minLat = pt.latitude;
       if (pt.latitude > maxLat) maxLat = pt.latitude;
       if (pt.longitude < minLng) minLng = pt.longitude;
@@ -142,7 +152,7 @@ class _MyHomePageState extends State<MyHomePage> {
       body: _currentPosition == null
           ? const Center(child: CircularProgressIndicator())
           : AnimatedBuilder(
-              animation: _districtController,
+              animation: _districtController as Listenable,
               builder: (context, _) {
                 return MapView(
                   mapController: _mapController,

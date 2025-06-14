@@ -79,8 +79,8 @@ class MapView extends StatelessWidget {
               // Polygon selection by tap
               for (int i = 0; i < districts.length; i++) {
                 final d = districts[i];
-                if (d.points.length > 2 &&
-                    PolygonUtils.pointInPolygon(latlng, d.points)) {
+                if (d.latLngPoints.length > 2 &&
+                    PolygonUtils.pointInPolygon(latlng, d.latLngPoints)) {
                   onSelectDistrict(i);
                   break;
                 }
@@ -186,7 +186,7 @@ class MapView extends StatelessWidget {
                   final d = entry.value;
                   final isSelected = i == selectedDistrictIndex;
                   return Polygon(
-                    points: d.points,
+                    points: d.latLngPoints,
                     color: d.color.withOpacity(isSelected ? 0.5 : 0.3),
                     borderStrokeWidth: isSelected ? 5 : 3,
                     borderColor: isSelected ? Colors.black : d.color,
