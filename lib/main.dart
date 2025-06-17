@@ -4,6 +4,7 @@ import 'district_controller.dart';
 import 'location_service.dart';
 import 'map_view.dart';
 import 'dialogs.dart';
+import 'poi_dialog.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:location/location.dart';
 import 'dart:math';
@@ -11,7 +12,9 @@ import 'dart:math';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final districtController = DistrictController();
-  districtController.init().then((_) {
+  Future.wait([districtController.init(), districtController.initPOIs()]).then((
+    _,
+  ) {
     runApp(MyApp(districtController: districtController));
   });
 }
@@ -62,6 +65,39 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  // POI creation state
+  bool _isCreatingPOI = false;
+  // LatLng? _pendingPOILocation; // No longer needed
+
+  Future<void> _startPOICreation() async {
+    setState(() {
+      _isCreatingPOI = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tap on the map to set POI location')),
+    );
+  }
+
+  Future<void> _onMapTapAddPOI(LatLng latlng) async {
+    if (!_isCreatingPOI) return;
+    final result = await showDialog(
+      context: context,
+      builder: (context) => POIDialog(location: latlng),
+    );
+    if (result != null) {
+      await _districtController.addPOI(result);
+      // Center the map on the new POI
+      _mapController.move(result.latLng, _mapController.camera.zoom);
+      // Show confirmation
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('POI "${result.name}" hinzugefügt')),
+      );
+    }
+    setState(() {
+      _isCreatingPOI = false;
+    });
+  }
+
   late final DistrictController _districtController;
   final LocationService _locationService = LocationService();
   final MapController _mapController = MapController();
@@ -224,9 +260,52 @@ class _MyHomePageState extends State<MyHomePage> {
                     }
                   },
                   satelliteView: _satelliteView,
+                  pois: _districtController.pois,
+                  onMapTapAddPOI: _isCreatingPOI ? _onMapTapAddPOI : null,
                 );
               },
             ),
+      // Only use a single custom stack, no default FABs
+      floatingActionButton: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          // Center button on top
+          Padding(
+            padding: const EdgeInsets.only(bottom: 80.0, right: 16.0),
+            child: FloatingActionButton(
+              heroTag: 'center-map',
+              onPressed: () {
+                setState(() {
+                  _followLocation = true;
+                });
+                if (_currentPosition != null) {
+                  _mapController.move(
+                    LatLng(
+                      _currentPosition!.latitude!,
+                      _currentPosition!.longitude!,
+                    ),
+                    _mapController.camera.zoom,
+                  );
+                }
+              },
+              child: const Icon(Icons.my_location),
+              tooltip: 'Karte zentrieren',
+            ),
+          ),
+          // Add POI button below
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
+            child: FloatingActionButton(
+              heroTag: 'add-poi',
+              onPressed: _isCreatingPOI ? null : _startPOICreation,
+              backgroundColor: _isCreatingPOI ? Colors.orange : null,
+              child: const Icon(Icons.add_location_alt),
+              tooltip: 'Add Point of Interest',
+            ),
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: null,
     );
   }
 }

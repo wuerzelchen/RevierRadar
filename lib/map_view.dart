@@ -4,6 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'polygon_utils.dart';
 
+import 'district_model.dart';
+
 class MapView extends StatelessWidget {
   final MapController mapController;
   final LatLng? currentPosition;
@@ -29,8 +31,11 @@ class MapView extends StatelessWidget {
   final bool followLocation;
   final VoidCallback onCenterLocation;
   final VoidCallback onUserMapMove;
-
   final bool satelliteView;
+
+  // POI support
+  final List<PointOfInterest> pois;
+  final void Function(LatLng)? onMapTapAddPOI;
 
   const MapView({
     super.key,
@@ -59,6 +64,8 @@ class MapView extends StatelessWidget {
     required this.onCenterLocation,
     required this.onUserMapMove,
     required this.satelliteView,
+    required this.pois,
+    this.onMapTapAddPOI,
   });
 
   @override
@@ -77,6 +84,10 @@ class MapView extends StatelessWidget {
               }
               if (isEditingDistrict && selectedDistrictIndex != null) {
                 onMapTapEditDistrict(latlng);
+                return;
+              }
+              if (onMapTapAddPOI != null) {
+                onMapTapAddPOI!(latlng);
                 return;
               }
               // Polygon selection by tap
@@ -182,6 +193,62 @@ class MapView extends StatelessWidget {
                           ),
                         );
                       }),
+                // POI markers
+                ...pois.map((poi) {
+                  IconData icon;
+                  Color color = Colors.green;
+                  switch (poi.type) {
+                    case 'Kirrung':
+                      icon = Icons.grass;
+                      color = Colors.brown;
+                      break;
+                    case 'Hochsitz':
+                      icon = Icons.chair_alt;
+                      color = Colors.blueGrey;
+                      break;
+                    case 'Drückjagd Sitz':
+                      icon = Icons.chair;
+                      color = Colors.deepOrange;
+                      break;
+                    case 'Fütterung':
+                      icon = Icons.restaurant;
+                      color = Colors.amber;
+                      break;
+                    case 'Wildäsungsfläche':
+                      icon = Icons.eco;
+                      color = Colors.green;
+                      break;
+                    case 'Fasanenfütterung':
+                      icon = Icons.egg;
+                      color = Colors.purple;
+                      break;
+                    case 'Salzlecke':
+                      icon = Icons.spa;
+                      color = Colors.lightBlue;
+                      break;
+                    case 'Wasserstelle':
+                      icon = Icons.water;
+                      color = Colors.blue;
+                      break;
+                    case 'Wechsel':
+                      icon = Icons.alt_route;
+                      color = Colors.teal;
+                      break;
+                    case 'Sonstiges':
+                      icon = Icons.location_on;
+                      color = Colors.grey;
+                      break;
+                    default:
+                      icon = Icons.place;
+                      color = Colors.green;
+                  }
+                  return Marker(
+                    width: 40.0,
+                    height: 40.0,
+                    point: poi.latLng,
+                    child: Icon(icon, color: color, size: 32),
+                  );
+                }),
               ],
             ),
             PolygonLayer(

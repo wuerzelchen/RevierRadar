@@ -2,11 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'district_model.dart';
 import 'polygon_utils.dart';
-
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class DistrictController extends ChangeNotifier {
+  static const String _poiBoxName = 'poiBox';
+  List<PointOfInterest> pois = [];
+
+  Future<void> initPOIs() async {
+    if (!Hive.isAdapterRegistered(2))
+      Hive.registerAdapter(PointOfInterestAdapter());
+    var box = await Hive.openBox<PointOfInterest>(_poiBoxName);
+    pois = box.values.toList();
+    notifyListeners();
+  }
+
+  Future<void> addPOI(PointOfInterest poi) async {
+    var box = await Hive.openBox<PointOfInterest>(_poiBoxName);
+    await box.add(poi);
+    // Reload the POIs from Hive to ensure the list is always up-to-date and triggers UI update
+    pois = box.values.toList();
+    notifyListeners();
+  }
+
   static const String _districtsBoxName = 'districtsBox';
   bool isEditingDistrict = false;
   int? editingPointIndex;
@@ -22,9 +40,11 @@ class DistrictController extends ChangeNotifier {
     if (_initialized) return;
     await Hive.initFlutter();
     if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(DistrictAdapter());
-    if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(LatLngSerializableAdapter());
+    if (!Hive.isAdapterRegistered(1))
+      Hive.registerAdapter(LatLngSerializableAdapter());
     var box = await Hive.openBox<District>(_districtsBoxName);
     districts = box.values.toList();
+    await initPOIs(); // Ensure POIs are loaded at startup
     _initialized = true;
     notifyListeners();
   }
@@ -34,6 +54,7 @@ class DistrictController extends ChangeNotifier {
     await box.clear();
     await box.addAll(districts);
   }
+
   final List<Color> districtColors = [
     Colors.blueAccent,
     Colors.green,
@@ -84,7 +105,9 @@ class DistrictController extends ChangeNotifier {
     if (selectedDistrictIndex != null && originalDistrictPoints != null) {
       districts[selectedDistrictIndex!].points
         ..clear()
-        ..addAll(originalDistrictPoints!.map((p) => LatLngSerializable.fromLatLng(p)));
+        ..addAll(
+          originalDistrictPoints!.map((p) => LatLngSerializable.fromLatLng(p)),
+        );
     }
     isEditingDistrict = false;
     editingPointIndex = null;
@@ -96,7 +119,9 @@ class DistrictController extends ChangeNotifier {
     if (selectedDistrictIndex == null || !isEditingDistrict) return;
     final district = districts[selectedDistrictIndex!];
     if (editingPointIndex != null) {
-      district.points[editingPointIndex!] = LatLngSerializable.fromLatLng(latlng);
+      district.points[editingPointIndex!] = LatLngSerializable.fromLatLng(
+        latlng,
+      );
       _saveDistricts();
       notifyListeners();
       return;
@@ -110,7 +135,9 @@ class DistrictController extends ChangeNotifier {
     );
     if (exists) return;
     if (points.length < 2) {
-      districts[selectedDistrictIndex!].points.add(LatLngSerializable.fromLatLng(latlng));
+      districts[selectedDistrictIndex!].points.add(
+        LatLngSerializable.fromLatLng(latlng),
+      );
       _saveDistricts();
       notifyListeners();
       return;
@@ -125,7 +152,10 @@ class DistrictController extends ChangeNotifier {
         insertIdx = j;
       }
     }
-    districts[selectedDistrictIndex!].points.insert(insertIdx, LatLngSerializable.fromLatLng(latlng));
+    districts[selectedDistrictIndex!].points.insert(
+      insertIdx,
+      LatLngSerializable.fromLatLng(latlng),
+    );
     _saveDistricts();
     notifyListeners();
   }

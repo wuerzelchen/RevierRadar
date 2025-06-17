@@ -4,6 +4,40 @@ import 'package:hive/hive.dart';
 
 part 'district_model.g.dart';
 
+@HiveType(typeId: 2)
+class PointOfInterest {
+  @HiveField(0)
+  String name;
+  @HiveField(1)
+  String type; // e.g., 'Kirrung', 'Hochsitz', etc.
+  @HiveField(2)
+  LatLngSerializable location;
+  @HiveField(3)
+  String? imagePath; // Optional: file path to the image
+
+  static const List<String> types = [
+    'Kirrung',
+    'Hochsitz',
+    'Drückjagd Sitz',
+    'Fütterung',
+    'Wildäsungsfläche',
+    'Fasanenfütterung',
+    'Salzlecke',
+    'Wasserstelle',
+    'Wechsel',
+    'Sonstiges',
+  ];
+
+  PointOfInterest({
+    required this.name,
+    required this.type,
+    required this.location,
+    this.imagePath,
+  });
+
+  LatLng get latLng => location.toLatLng();
+}
+
 @HiveType(typeId: 0)
 class District extends HiveObject {
   @HiveField(0)
