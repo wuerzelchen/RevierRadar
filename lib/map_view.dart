@@ -137,7 +137,7 @@ class MapView extends StatelessWidget {
                         return Marker(
                           width: 60.0,
                           height: 36.0,
-                          point: pt,
+                          point: pt.toLatLng(),
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
