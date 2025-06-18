@@ -7,16 +7,19 @@ import 'dialogs.dart';
 import 'poi_dialog.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:location/location.dart';
-import 'dart:math';
 
-void main() {
+import 'dart:math';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+
   final districtController = DistrictController();
-  Future.wait([districtController.init(), districtController.initPOIs()]).then((
-    _,
-  ) {
-    runApp(MyApp(districtController: districtController));
-  });
+  await Future.wait([districtController.init(), districtController.initPOIs()]);
+
+  runApp(MyApp(districtController: districtController));
 }
 
 class MyApp extends StatelessWidget {
@@ -265,11 +268,11 @@ class _MyHomePageState extends State<MyHomePage> {
                 );
               },
             ),
-      // Only use a single custom stack, no default FABs
+      // Only keep the POI and center button in the stack
       floatingActionButton: Stack(
         alignment: Alignment.bottomRight,
         children: [
-          // Center button on top
+          // Center button
           Padding(
             padding: const EdgeInsets.only(bottom: 80.0, right: 16.0),
             child: FloatingActionButton(
@@ -292,7 +295,7 @@ class _MyHomePageState extends State<MyHomePage> {
               tooltip: 'Karte zentrieren',
             ),
           ),
-          // Add POI button below
+          // Add POI button
           Padding(
             padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
             child: FloatingActionButton(

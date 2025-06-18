@@ -300,15 +300,7 @@ class MapView extends StatelessWidget {
               ],
             ),
           ),
-        // Center map button (bottom right)
-        Positioned(
-          bottom: 24,
-          right: 24,
-          child: FloatingActionButton(
-            onPressed: onCenterLocation,
-            child: const Icon(Icons.my_location),
-          ),
-        ),
+        // ...removed background center map button...
         // Plus button for district creation (bottom left)
         Positioned(
           bottom: 24,
