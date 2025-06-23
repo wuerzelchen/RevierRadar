@@ -182,6 +182,9 @@ class _MyHomePageState extends State<MyHomePage> {
     _mapController.move(center, targetZoom);
   }
 
+  // For Speed Dial FAB
+  bool _isFabExpanded = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -268,42 +271,127 @@ class _MyHomePageState extends State<MyHomePage> {
                 );
               },
             ),
-      // Only keep the POI and center button in the stack
       floatingActionButton: Stack(
-        alignment: Alignment.bottomRight,
         children: [
-          // Center button
-          Padding(
-            padding: const EdgeInsets.only(bottom: 80.0, right: 16.0),
-            child: FloatingActionButton(
-              heroTag: 'center-map',
-              onPressed: () {
-                setState(() {
-                  _followLocation = true;
-                });
-                if (_currentPosition != null) {
-                  _mapController.move(
-                    LatLng(
-                      _currentPosition!.latitude!,
-                      _currentPosition!.longitude!,
-                    ),
-                    _mapController.camera.zoom,
-                  );
-                }
-              },
-              child: const Icon(Icons.my_location),
-              tooltip: 'Karte zentrieren',
+          // Center button (bottom right)
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: 80.0,
+                right: MediaQuery.of(context).size.width * 0.05,
+              ),
+              child: FloatingActionButton(
+                heroTag: 'center-map',
+                onPressed: () {
+                  setState(() {
+                    _followLocation = true;
+                  });
+                  if (_currentPosition != null) {
+                    _mapController.move(
+                      LatLng(
+                        _currentPosition!.latitude!,
+                        _currentPosition!.longitude!,
+                      ),
+                      _mapController.camera.zoom,
+                    );
+                  }
+                },
+                child: const Icon(Icons.my_location),
+                tooltip: 'Karte zentrieren',
+              ),
             ),
           ),
-          // Add POI button
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
-            child: FloatingActionButton(
-              heroTag: 'add-poi',
-              onPressed: _isCreatingPOI ? null : _startPOICreation,
-              backgroundColor: _isCreatingPOI ? Colors.orange : null,
-              child: const Icon(Icons.add_location_alt),
-              tooltip: 'Add Point of Interest',
+          // Speed Dial FAB (bottom left)
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: 16.0,
+                left: MediaQuery.of(context).size.width * 0.10,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_isFabExpanded) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: FloatingActionButton.extended(
+                        heroTag: 'add-district',
+                        onPressed: _districtController.isCreatingDistrict
+                            ? null
+                            : () {
+                                setState(() {
+                                  _isFabExpanded = false;
+                                });
+                                _districtController.startDistrictCreation();
+                              },
+                        backgroundColor: _districtController.isCreatingDistrict
+                            ? Colors.orange
+                            : null,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add District'),
+                        tooltip: 'Add District',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: FloatingActionButton.extended(
+                        heroTag: 'add-poi',
+                        onPressed: _isCreatingPOI
+                            ? null
+                            : () {
+                                setState(() {
+                                  _isFabExpanded = false;
+                                });
+                                _startPOICreation();
+                              },
+                        backgroundColor: _isCreatingPOI ? Colors.orange : null,
+                        icon: const Icon(Icons.add_location_alt),
+                        label: const Text('Add POI'),
+                        tooltip: 'Add Point of Interest',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: FloatingActionButton.extended(
+                        heroTag: 'add-activity',
+                        onPressed: () {
+                          setState(() {
+                            _isFabExpanded = false;
+                          });
+                          // TODO: Implement activity creation dialog
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Add Activity (not implemented yet)',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.event_note),
+                        label: const Text('Add Activity'),
+                        tooltip: 'Add Activity',
+                      ),
+                    ),
+                  ],
+                  FloatingActionButton(
+                    heroTag: 'expand-add',
+                    onPressed: () {
+                      setState(() {
+                        _isFabExpanded = !_isFabExpanded;
+                      });
+                    },
+                    child: AnimatedRotation(
+                      turns: _isFabExpanded ? 0.125 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(Icons.add),
+                    ),
+                    tooltip: _isFabExpanded ? 'Close' : 'Add',
+                  ),
+                ],
+              ),
             ),
           ),
         ],

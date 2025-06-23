@@ -301,16 +301,6 @@ class MapView extends StatelessWidget {
             ),
           ),
         // ...removed background center map button...
-        // Plus button for district creation (bottom left)
-        Positioned(
-          bottom: 24,
-          left: 24,
-          child: FloatingActionButton(
-            backgroundColor: isCreatingDistrict ? Colors.orange : null,
-            onPressed: isCreatingDistrict ? null : onStartDistrictCreation,
-            child: const Icon(Icons.add),
-          ),
-        ),
         // Legend (top right) with edit controls
         if (districts.isNotEmpty)
           Positioned(
