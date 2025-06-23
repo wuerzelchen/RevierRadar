@@ -6,6 +6,24 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class DistrictController extends ChangeNotifier {
+  Future<void> updatePOI(int index, PointOfInterest updatedPOI) async {
+    var box = await Hive.openBox<PointOfInterest>(_poiBoxName);
+    if (index < 0 || index >= pois.length) return;
+    final key = box.keyAt(index);
+    await box.put(key, updatedPOI);
+    pois = box.values.toList();
+    notifyListeners();
+  }
+
+  Future<void> deletePOI(int index) async {
+    var box = await Hive.openBox<PointOfInterest>(_poiBoxName);
+    if (index < 0 || index >= pois.length) return;
+    final key = box.keyAt(index);
+    await box.delete(key);
+    pois = box.values.toList();
+    notifyListeners();
+  }
+
   static const String _poiBoxName = 'poiBox';
   List<PointOfInterest> pois = [];
 

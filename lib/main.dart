@@ -1,6 +1,8 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'district_controller.dart';
+import 'district_model.dart';
 import 'location_service.dart';
 import 'map_view.dart';
 import 'dialogs.dart';
@@ -8,7 +10,8 @@ import 'poi_dialog.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:location/location.dart';
 
-import 'dart:math';
+import 'dart:io';
+
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -68,8 +71,189 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  void _onTapPOI(int index, PointOfInterest poi) async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                child: Text(
+                  poi.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              if (poi.imagePath != null && poi.imagePath!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: SizedBox(
+                    height: 120,
+                    child: Image.file(
+                      File(poi.imagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Text('Bild nicht gefunden'),
+                    ),
+                  ),
+                ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Edit POI'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  await _editPOI(index);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Delete POI'),
+                onTap: () async {
+                  Navigator.of(context).pop();
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Delete POI'),
+                      content: Text('Delete POI "${poi.name}"?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await _deletePOI(index);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // POI creation state
   bool _isCreatingPOI = false;
+
+  // Show POI list (Read)
+  void _showPOIList() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        final pois = _districtController.pois;
+        if (pois.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Center(child: Text('No POIs available.')),
+          );
+        }
+        return ListView.separated(
+          itemCount: pois.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final poi = pois[index];
+            return ListTile(
+              title: Text(poi.name),
+              subtitle: Text(
+                'Lat: ${poi.latLng.latitude.toStringAsFixed(5)}, Lng: ${poi.latLng.longitude.toStringAsFixed(5)}',
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit',
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _editPOI(index);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete),
+                    tooltip: 'Delete',
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete POI'),
+                          content: Text('Delete POI "${poi.name}"?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        await _deletePOI(index);
+                        Navigator.of(
+                          context,
+                        ).pop(); // Close the sheet after delete
+                      }
+                    },
+                  ),
+                ],
+              ),
+              onTap: () {
+                // Center map on POI
+                Navigator.of(context).pop();
+                _mapController.move(poi.latLng, _mapController.camera.zoom);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Edit POI (Update)
+  Future<void> _editPOI(int index) async {
+    final poi = _districtController.pois[index];
+    final result = await showDialog(
+      context: context,
+      builder: (context) => POIDialog(location: poi.latLng, initialPOI: poi),
+    );
+    if (result != null) {
+      await _districtController.updatePOI(index, result);
+      setState(() {});
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('POI "${result.name}" updated')));
+    }
+  }
+
+  // Delete POI (Delete)
+  Future<void> _deletePOI(int index) async {
+    await _districtController.deletePOI(index);
+    setState(() {});
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('POI deleted')));
+  }
   // LatLng? _pendingPOILocation; // No longer needed
 
   Future<void> _startPOICreation() async {
@@ -268,6 +452,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   satelliteView: _satelliteView,
                   pois: _districtController.pois,
                   onMapTapAddPOI: _isCreatingPOI ? _onMapTapAddPOI : null,
+                  onTapPOI: _onTapPOI,
                 );
               },
             ),
@@ -278,7 +463,7 @@ class _MyHomePageState extends State<MyHomePage> {
             alignment: Alignment.bottomRight,
             child: Padding(
               padding: EdgeInsets.only(
-                bottom: 80.0,
+                bottom: 16.0,
                 right: MediaQuery.of(context).size.width * 0.05,
               ),
               child: FloatingActionButton(
@@ -315,6 +500,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_isFabExpanded) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: FloatingActionButton.extended(
+                        heroTag: 'show-pois',
+                        onPressed: () {
+                          setState(() {
+                            _isFabExpanded = false;
+                          });
+                          _showPOIList();
+                        },
+                        icon: const Icon(Icons.list),
+                        label: const Text('Show POIs'),
+                        tooltip: 'Show all POIs',
+                      ),
+                    ),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: FloatingActionButton.extended(

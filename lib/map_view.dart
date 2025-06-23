@@ -36,6 +36,7 @@ class MapView extends StatelessWidget {
   // POI support
   final List<PointOfInterest> pois;
   final void Function(LatLng)? onMapTapAddPOI;
+  final void Function(int, PointOfInterest)? onTapPOI;
 
   const MapView({
     super.key,
@@ -66,6 +67,7 @@ class MapView extends StatelessWidget {
     required this.satelliteView,
     required this.pois,
     this.onMapTapAddPOI,
+    this.onTapPOI,
   });
 
   @override
@@ -194,7 +196,9 @@ class MapView extends StatelessWidget {
                         );
                       }),
                 // POI markers
-                ...pois.map((poi) {
+                ...pois.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final poi = entry.value;
                   IconData icon;
                   Color color = Colors.green;
                   switch (poi.type) {
@@ -246,7 +250,12 @@ class MapView extends StatelessWidget {
                     width: 40.0,
                     height: 40.0,
                     point: poi.latLng,
-                    child: Icon(icon, color: color, size: 32),
+                    child: GestureDetector(
+                      onTap: onTapPOI != null
+                          ? () => onTapPOI!(idx, poi)
+                          : null,
+                      child: Icon(icon, color: color, size: 32),
+                    ),
                   );
                 }),
               ],
